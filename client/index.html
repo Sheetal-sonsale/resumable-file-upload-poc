@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>TUS Resumable Upload</title>
+
+  <!-- TUS client -->
+  <script src="https://unpkg.com/tus-js-client/dist/tus.js"></script>
+
+  <style>
+    body {
+      font-family: Arial;
+      margin: 40px;
+    }
+
+    progress {
+      width: 300px;
+      height: 20px;
+    }
+
+    button {
+      margin-right: 10px;
+    }
+  </style>
+</head>
+<body>
+
+<h2>Resumable File Upload</h2>
+
+<input type="file" id="fileInput" />
+
+<br><br>
+
+<button id="startBtn">Start Upload</button>
+<button id="pauseBtn" disabled>Pause</button>
+<button id="resumeBtn" disabled>Resume</button>
+
+<br><br>
+
+<progress id="progressBar" value="0" max="100"></progress>
+<p id="percentage">0%</p>
+<p id="status"></p>
+
+<script>
+  let upload = null;
+
+  const startBtn = document.getElementById("startBtn");
+  const pauseBtn = document.getElementById("pauseBtn");
+  const resumeBtn = document.getElementById("resumeBtn");
+
+  startBtn.onclick = startUpload;
+  pauseBtn.onclick = pauseUpload;
+  resumeBtn.onclick = resumeUpload;
+
+  function startUpload() {
+    const file = document.getElementById("fileInput").files[0];
+
+    if (!file) {
+      alert("Please select a file first");
+      return;
+    }
+
+    upload = new tus.Upload(file, {
+      endpoint: "http://localhost:3000/files/",
+      retryDelays: [0, 1000, 3000, 5000],
+      metadata: {
+        filename: file.name,
+        filetype: file.type
+      },
+
+      onProgress(bytesUploaded, bytesTotal) {
+        const percentage = ((bytesUploaded / bytesTotal) * 100).toFixed(2);
+
+        document.getElementById("progressBar").value = percentage;
+        document.getElementById("percentage").innerText = percentage + "%";
+      },
+
+      onError(error) {
+        document.getElementById("status").innerText =
+          "Upload failed: " + error;
+      },
+
+      onSuccess() {
+        document.getElementById("status").innerText =
+          "Upload completed!";
+        pauseBtn.disabled = true;
+        resumeBtn.disabled = true;
+      }
+    });
+
+    // Resume previous upload if exists
+    upload.findPreviousUploads().then(previousUploads => {
+      if (previousUploads.length) {
+        upload.resumeFromPreviousUpload(previousUploads[0]);
+      }
+      upload.start();
+    });
+
+    startBtn.disabled = true;
+    pauseBtn.disabled = false;
+  }
+
+  function pauseUpload() {
+    if (upload) {
+      upload.abort(); // pauses upload
+      document.getElementById("status").innerText = "Upload paused";
+      pauseBtn.disabled = true;
+      resumeBtn.disabled = false;
+    }
+  }
+
+  function resumeUpload() {
+    if (upload) {
+      upload.start(); // resumes upload
+      document.getElementById("status").innerText = "Upload resumed";
+      pauseBtn.disabled = false;
+      resumeBtn.disabled = true;
+    }
+  }
+</script>
+
+</body>
+</html>
